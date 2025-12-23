@@ -65,9 +65,8 @@ $RECYCLE.BIN/
 # Build folders
 Release-*/
 
-# Zip files (keep only the latest)
-AppHider-v*.zip
-!AppHider-v2.3.6-DEBUG.zip
+# Zip files (use GitHub Releases instead)
+*.zip
 
 # Kiro directory
 .kiro/
