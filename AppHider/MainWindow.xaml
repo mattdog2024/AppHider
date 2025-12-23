@@ -1,0 +1,488 @@
+﻿<Window x:Class="AppHider.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:AppHider"
+        mc:Ignorable="d"
+        Title="App Hider" Height="750" Width="900"
+        WindowStartupLocation="CenterScreen"
+        Background="#F5F5F5">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="15"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header with Safe Mode Indicator -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="App Hider - Privacy Control"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="#333333"
+                       VerticalAlignment="Center"/>
+
+            <!-- Safe Mode Indicator -->
+            <Border x:Name="SafeModeIndicator"
+                    Grid.Column="1"
+                    Background="#FFA500"
+                    CornerRadius="5"
+                    Padding="10,5"
+                    Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⚠"
+                               FontSize="16"
+                               Foreground="White"
+                               Margin="0,0,5,0"/>
+                    <TextBlock Text="SAFE MODE"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="White"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2"
+                Background="White"
+                BorderBrush="#DDDDDD"
+                BorderThickness="1"
+                CornerRadius="5"
+                Padding="15">
+            <StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="Status:"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               Foreground="#666666"
+                               VerticalAlignment="Center"/>
+
+                    <TextBlock x:Name="StatusText"
+                               Grid.Column="1"
+                               Text="Normal Mode"
+                               FontSize="14"
+                               Foreground="#4CAF50"
+                               Margin="10,0,0,0"
+                               VerticalAlignment="Center"/>
+
+                    <Button x:Name="TogglePrivacyButton"
+                            Grid.Column="2"
+                            Content="Activate Privacy Mode"
+                            Height="35"
+                            Width="180"
+                            FontSize="13"
+                            Background="#2196F3"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="TogglePrivacyButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+                
+                <!-- Status Message (shown when privacy mode restored from previous session) -->
+                <Border x:Name="StatusMessageBorder"
+                        Background="#FFF3E0"
+                        BorderBrush="#FF9800"
+                        BorderThickness="1"
+                        CornerRadius="3"
+                        Padding="10"
+                        Margin="0,10,0,0"
+                        Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="ℹ"
+                                   FontSize="16"
+                                   Foreground="#FF9800"
+                                   Margin="0,0,8,0"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="StatusMessageText"
+                                   FontSize="12"
+                                   Foreground="#E65100"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="15"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Application List -->
+            <Border Grid.Column="0"
+                    Background="White"
+                    BorderBrush="#DDDDDD"
+                    BorderThickness="1"
+                    CornerRadius="5">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Border Grid.Row="0"
+                            Background="#F9F9F9"
+                            BorderBrush="#DDDDDD"
+                            BorderThickness="0,0,0,1"
+                            Padding="15,10">
+                        <TextBlock Text="Running Applications"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Foreground="#333333"/>
+                    </Border>
+
+                    <!-- Application List -->
+                    <ListView x:Name="ApplicationListView"
+                              Grid.Row="1"
+                              BorderThickness="0"
+                              SelectionMode="Multiple"
+                              SelectionChanged="ApplicationListView_SelectionChanged">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <CheckBox Grid.Column="0"
+                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              VerticalAlignment="Center"
+                                              Margin="0,0,10,0"/>
+
+                                    <StackPanel Grid.Column="1">
+                                        <TextBlock Text="{Binding ProcessName}"
+                                                   FontSize="14"
+                                                   FontWeight="Bold"
+                                                   Foreground="#333333"/>
+                                        <TextBlock Text="{Binding WindowTitle}"
+                                                   FontSize="12"
+                                                   Foreground="#666666"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </StackPanel>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- Refresh Button -->
+                    <Button x:Name="RefreshButton"
+                            Grid.Row="2"
+                            Content="Refresh List"
+                            Height="35"
+                            Margin="15,10"
+                            Background="#757575"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="RefreshButton_Click">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- Settings Panel -->
+            <Border Grid.Column="2"
+                    Background="White"
+                    BorderBrush="#DDDDDD"
+                    BorderThickness="1"
+                    CornerRadius="5">
+                <StackPanel Margin="15">
+                    <!-- Hotkey Configuration -->
+                    <TextBlock Text="Hotkey Configuration"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#333333"
+                               Margin="0,0,0,10"/>
+
+                    <!-- Toggle Hotkey -->
+                    <TextBlock Text="Toggle Privacy Mode:"
+                               FontSize="12"
+                               Foreground="#666666"
+                               Margin="0,0,0,5"/>
+
+                    <TextBox x:Name="ToggleHotkeyTextBox"
+                             Height="35"
+                             FontSize="14"
+                             Padding="5"
+                             IsReadOnly="True"
+                             Background="#F9F9F9"
+                             Margin="0,0,0,10"
+                             PreviewKeyDown="ToggleHotkeyTextBox_PreviewKeyDown"/>
+
+                    <!-- Menu Hotkey -->
+                    <TextBlock Text="Open Menu:"
+                               FontSize="12"
+                               Foreground="#666666"
+                               Margin="0,0,0,5"/>
+
+                    <TextBox x:Name="MenuHotkeyTextBox"
+                             Height="35"
+                             FontSize="14"
+                             Padding="5"
+                             IsReadOnly="True"
+                             Background="#F9F9F9"
+                             Margin="0,0,0,10"
+                             PreviewKeyDown="MenuHotkeyTextBox_PreviewKeyDown"/>
+
+                    <Button x:Name="SaveHotkeysButton"
+                            Content="Save Hotkeys"
+                            Height="35"
+                            Background="#4CAF50"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="SaveHotkeysButton_Click"
+                            Margin="0,0,0,20">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Change Password -->
+                    <Button x:Name="ChangePasswordButton"
+                            Content="Change Password"
+                            Height="35"
+                            Background="#FF9800"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="ChangePasswordButton_Click"
+                            Margin="0,0,0,20">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Auto-Startup Section -->
+                    <TextBlock Text="System Settings"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#333333"
+                               Margin="0,0,0,10"/>
+
+                    <!-- Auto-Startup Checkbox -->
+                    <CheckBox x:Name="AutoStartupCheckBox"
+                              Content="开机自启动 (Auto-Start at Boot)"
+                              FontSize="13"
+                              Foreground="#666666"
+                              Margin="0,0,0,20"
+                              Checked="AutoStartupCheckBox_Changed"
+                              Unchecked="AutoStartupCheckBox_Changed"/>
+
+                    <!-- Uninstall Authorization -->
+                    <Button x:Name="UninstallButton"
+                            Content="Authorize Uninstall"
+                            Height="35"
+                            Background="#9E9E9E"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="UninstallButton_Click"
+                            Margin="0,0,0,10">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
+                    <!-- Force Exit Button -->
+                    <Button x:Name="ForceExitButton"
+                            Content="⚠ Force Complete Exit"
+                            Height="35"
+                            Background="#D32F2F"
+                            Foreground="White"
+                            BorderThickness="0"
+                            Cursor="Hand"
+                            Click="ForceExitButton_Click"
+                            Margin="0,0,0,10">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Emergency Recovery Button -->
+        <Button x:Name="EmergencyRecoveryButton"
+                Grid.Row="6"
+                Content="⚠ EMERGENCY NETWORK RECOVERY ⚠"
+                Height="50"
+                FontSize="16"
+                FontWeight="Bold"
+                Background="#F44336"
+                Foreground="White"
+                BorderThickness="0"
+                Cursor="Hand"
+                Click="EmergencyRecoveryButton_Click">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}"
+                                        CornerRadius="5"
+                                        Padding="10">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center"/>
+                                </Border>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                    <Style.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Opacity" Value="0.9"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+        </Button>
+
+        <!-- Footer Info -->
+        <TextBlock Grid.Row="8"
+                   x:Name="FooterText"
+                   Text="Select applications to hide when Privacy Mode is activated"
+                   FontSize="12"
+                   Foreground="#999999"
+                   HorizontalAlignment="Center"/>
+    </Grid>
+</Window>

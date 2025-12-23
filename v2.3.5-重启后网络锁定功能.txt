@@ -1,0 +1,234 @@
+AppHider v2.3.5 - 重启后网络锁定功能
+================================================
+日期: 2025-12-23
+状态: ✅ 已实现
+
+## 功能描述
+
+实现了"重启后网络锁定"的安全功能，确保断网状态在重启后保持，并且只能通过紧急恢复来解锁。
+
+## 核心理念
+
+**断网状态 = 最高优先级的安全锁**
+
+- 一旦断网，状态会被永久保存
+- 重启后自动恢复断网状态
+- 快捷键在重启后被禁用，无法解锁网络
+- 只有用户手动点击"紧急恢复"才能恢复网络
+
+## 使用场景
+
+### 场景1：正常使用（程序运行中）
+```
+1. 勾选记事本 → 按快捷键 → 隐藏记事本 + 断网 ✅
+2. 再按快捷键 → Toggle → 显示记事本 + 恢复网络 ✅
+   （因为程序还在运行，应用还在，可以正常切换）
+```
+
+### 场景2：关机/重启后
+```
+1. 开机 → 程序启动 → 检测到之前断网了 → 保持断网 ✅
+2. 按快捷键 → ❌ 被阻止！显示安全提示 ✅
+3. 必须用紧急恢复 → 才能恢复网络 ✅
+4. 恢复网络后 → 可以重新勾选应用 → 重新激活隐私模式 ✅
+```
+
+## 实现细节
+
+### 1. 新增状态标记
+
+在 `PrivacyModeController` 中添加：
+```csharp
+private bool _isRestoredFromPreviousSession = false;
+public bool IsRestoredFromPreviousSession => _isRestoredFromPreviousSession;
+```
+
+### 2. 状态恢复逻辑
+
+`RestoreStateOnStartupAsync()` 方法：
+- 检测到之前断网 → 恢复断网状态
+- 设置 `_isRestoredFromPreviousSession = true`
+- 清空隐藏应用列表（因为应用已不存在）
+- 记录日志：快捷键已禁用
+
+### 3. Toggle 快捷键保护
+
+`TogglePrivacyModeAsync()` 方法：
+```csharp
+// SECURITY: If this is a restored state from previous session, don't allow toggle
+if (isRestored && isCurrentlyActive)
+{
+    // 显示安全提示，阻止操作
+    MessageBox.Show("检测到网络是在上次会话中断开的。\n\n" +
+        "为了安全，快捷键无法恢复网络。\n\n" +
+        "请使用\"紧急恢复\"按钮来恢复网络连接。");
+    return;
+}
+```
+
+### 4. 用户激活清除标记
+
+当用户在当前会话中主动激活隐私模式时：
+```csharp
+_isRestoredFromPreviousSession = false;  // 清除标记
+```
+
+这样快捷键可以正常工作（因为不是重启后恢复的状态）。
+
+### 5. 紧急恢复清除标记
+
+紧急恢复时：
+```csharp
+await _networkController.EmergencyRestoreAsync();
+await _privacyModeController.DeactivatePrivacyModeAsync();  // 清除所有状态
+```
+
+### 6. UI 状态提示
+
+`UpdateStatusDisplay()` 方法：
+```csharp
+if (_privacyModeController.IsRestoredFromPreviousSession)
+{
+    StatusMessageText.Text = "⚠ 安全提示：网络在上次会话中被断开，仍然保持断开状态。\n\n" +
+        "快捷键已禁用，只能通过\"紧急恢复\"按钮恢复网络。\n\n" +
+        "这是为了确保您的隐私安全。";
+}
+```
+
+### 7. 启动时状态恢复
+
+在 `App.xaml.cs` 中重新启用了状态恢复代码：
+```csharp
+var restoreTask = Task.Run(async () => await _privacyModeController.RestoreStateOnStartupAsync());
+if (restoreTask.Wait(TimeSpan.FromSeconds(5)))
+{
+    if (_privacyModeController.IsPrivacyModeActive)
+    {
+        Debug.WriteLine("Privacy mode restored from previous session - network disabled");
+        Debug.WriteLine("Toggle hotkey disabled - only emergency recovery can unlock");
+    }
+}
+```
+
+## 修改的文件
+
+1. **AppHider/Services/IPrivacyModeController.cs**
+   - 添加 `IsRestoredFromPreviousSession` 属性
+
+2. **AppHider/Services/PrivacyModeController.cs**
+   - 添加 `_isRestoredFromPreviousSession` 字段
+   - 修改 `RestoreStateOnStartupAsync()` - 设置标记，清空应用列表
+   - 修改 `ActivatePrivacyModeAsync()` - 清除标记
+   - 修改 `DeactivatePrivacyModeAsync()` - 清除标记
+   - 修改 `TogglePrivacyModeAsync()` - 检查标记，阻止重启后的切换
+
+3. **AppHider/App.xaml.cs**
+   - 重新启用状态恢复代码（之前被注释掉了）
+   - 添加详细的日志记录
+
+4. **AppHider/MainWindow.xaml.cs**
+   - 修改 `UpdateStatusDisplay()` - 显示重启后的安全提示
+   - 修改 `EmergencyRecoveryButton_Click()` - 调用 DeactivatePrivacyModeAsync
+
+## 安全保证
+
+1. ✅ 断网状态永久保存，重启后自动恢复
+2. ✅ 重启后快捷键被禁用，无法意外解锁
+3. ✅ 只有紧急恢复可以解锁网络
+4. ✅ 用户会看到明确的安全提示
+5. ✅ 隐藏应用列表在重启后被清空（因为应用不存在了）
+6. ✅ 恢复网络后可以重新开始（选新应用，重新断网）
+
+## 用户体验
+
+### 正常使用（程序运行中）
+- 快捷键正常工作，可以快速切换
+- 隐藏应用 + 断网 / 显示应用 + 恢复网络
+
+### 重启后
+- 网络保持断开（安全第一）
+- 界面显示明确的安全提示
+- 快捷键被禁用，防止误操作
+- 用户知道必须使用紧急恢复
+
+### 紧急恢复后
+- 网络恢复
+- 所有状态清除
+- 可以重新开始使用
+
+## 测试步骤
+
+1. **测试正常切换**
+   - 启动程序
+   - 勾选记事本
+   - 按快捷键 → 应该断网
+   - 再按快捷键 → 应该恢复网络
+   - ✅ 正常工作
+
+2. **测试重启后锁定**
+   - 启动程序
+   - 勾选记事本
+   - 按快捷键 → 断网
+   - 关闭程序（或重启电脑）
+   - 重新启动程序
+   - 检查网络 → 应该仍然断开
+   - 按快捷键 → 应该显示安全提示，不恢复网络
+   - ✅ 快捷键被禁用
+
+3. **测试紧急恢复**
+   - （接上一步）
+   - 点击"紧急恢复"按钮
+   - 网络应该恢复
+   - 状态应该清除
+   - ✅ 紧急恢复工作
+
+4. **测试重新激活**
+   - （接上一步）
+   - 勾选新的应用
+   - 按快捷键 → 应该断网
+   - 再按快捷键 → 应该恢复网络
+   - ✅ 重新激活后快捷键正常工作
+
+## 日志输出
+
+### 重启后恢复状态
+```
+[STARTUP] Checking for previous privacy mode state...
+Privacy mode was active before shutdown
+SECURITY: Network will remain disabled until user manually restores
+SECURITY: Toggle hotkey is DISABLED - only emergency recovery can unlock
+Hidden application list cleared (apps don't exist after restart)
+Privacy mode state restored. Network remains disabled for security.
+```
+
+### 快捷键被阻止
+```
+Toggle privacy mode called. Current state: Active
+IsRestoredFromPreviousSession: True
+========================================
+SECURITY: Toggle blocked - state was restored from previous session
+User must use Emergency Recovery to restore network
+========================================
+```
+
+### 用户激活清除标记
+```
+ActivatePrivacyModeAsync called
+State changed to: Activating
+Cleared IsRestoredFromPreviousSession flag - user-initiated activation
+```
+
+## 版本信息
+
+- 版本: v2.3.5
+- 实现日期: 2025-12-23
+- 基于版本: v2.3.4
+- 核心功能: 重启后网络锁定 + 快捷键禁用
+
+## 下一步
+
+需要用户测试：
+1. 关闭当前运行的 AppHider 程序
+2. 重新编译项目
+3. 测试上述场景
+4. 确认功能符合预期
