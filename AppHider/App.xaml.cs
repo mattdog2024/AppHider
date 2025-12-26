@@ -875,6 +875,23 @@ public partial class App : Application
         
         try
         {
+            // SECURITY: Always require password authentication before showing main window
+            FL.Log("[SECURITY] Showing login dialog for authentication...");
+            Debug.WriteLine("[SECURITY] Showing login dialog for authentication...");
+            
+            var loginWindow = new LoginWindow(_authService!);
+            var loginResult = loginWindow.ShowDialog();
+            
+            if (loginResult != true || !loginWindow.IsAuthenticated)
+            {
+                FL.Log("[SECURITY] Authentication failed or cancelled - main window will not be shown");
+                Debug.WriteLine("[SECURITY] Authentication failed or cancelled - main window will not be shown");
+                return; // Exit without showing main window
+            }
+            
+            FL.Log("[SECURITY] ✓ Authentication successful - proceeding to show main window");
+            Debug.WriteLine("[SECURITY] ✓ Authentication successful - proceeding to show main window");
+            
             // Log current window state
             if (_mainWindow == null)
             {
