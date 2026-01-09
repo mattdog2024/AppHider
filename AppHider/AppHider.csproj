@@ -9,11 +9,11 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     
     <!-- Version Information -->
-    <Version>2.3.4</Version>
-    <AssemblyVersion>2.3.4.0</AssemblyVersion>
-    <FileVersion>2.3.4.0</FileVersion>
+    <Version>2.4.3</Version>
+    <AssemblyVersion>2.4.3.0</AssemblyVersion>
+    <FileVersion>2.4.3.0</FileVersion>
     <Product>AppHider</Product>
-    <Description>Application hiding and privacy mode control utility</Description>
+    <Description>Application hiding and privacy mode control utility with simple remote desktop window closing</Description>
     <Copyright>Copyright © 2024</Copyright>
     
     <!-- Single File Publish Settings -->

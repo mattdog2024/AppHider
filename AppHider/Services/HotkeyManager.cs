@@ -14,12 +14,15 @@ public class HotkeyManager : IHotkeyManager, IDisposable
     private const int NOTIFY_FOR_THIS_SESSION = 0;
 
     private readonly Dictionary<int, (Key key, ModifierKeys modifiers, Action callback)> _registeredHotkeys = new();
+    private readonly Dictionary<string, HotkeyConfig> _namedHotkeys = new(); // Track named hotkeys for conflict detection
     private Action? _lockScreenCallback;
     private IntPtr _windowHandle;
     private HwndSource? _hwndSource;
     private int _nextHotkeyId = 1;
     private bool _disposed;
     private bool _initialized;
+    private HotkeyConfig? _emergencyDisconnectHotkey;
+    private int _emergencyDisconnectHotkeyId = -1;
 
     public event EventHandler<HotkeyPressedEventArgs>? HotkeyPressed;
 
@@ -243,10 +246,266 @@ public class HotkeyManager : IHotkeyManager, IDisposable
         return result;
     }
 
+    /// <summary>
+    /// Registers the emergency disconnect hotkey with validation and conflict detection
+    /// Requirements: 4.2 (validation), 4.3 (global registration), 4.4 (default configuration)
+    /// </summary>
+    public bool RegisterEmergencyDisconnectHotkey(HotkeyConfig hotkeyConfig, Action callback)
+    {
+        if (hotkeyConfig == null)
+            throw new ArgumentNullException(nameof(hotkeyConfig));
+        
+        if (callback == null)
+            throw new ArgumentNullException(nameof(callback));
+
+        try
+        {
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Registering emergency disconnect hotkey: {hotkeyConfig.Modifiers}+{hotkeyConfig.Key}");
+
+            // Validate the hotkey configuration
+            if (!ValidateHotkeyConfig(hotkeyConfig, out string? errorMessage))
+            {
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] Emergency disconnect hotkey validation failed: {errorMessage}");
+                return false;
+            }
+
+            // Check if hotkey is available (not already registered)
+            if (!IsHotkeyAvailable(hotkeyConfig.Key, hotkeyConfig.Modifiers))
+            {
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] Emergency disconnect hotkey is already in use: {hotkeyConfig.Modifiers}+{hotkeyConfig.Key}");
+                return false;
+            }
+
+            // Unregister existing emergency disconnect hotkey if any
+            UnregisterEmergencyDisconnectHotkey();
+
+            // Register the new hotkey
+            if (_windowHandle == IntPtr.Zero)
+            {
+                System.Diagnostics.Debug.WriteLine("[HOTKEY] Cannot register emergency disconnect hotkey: HotkeyManager not initialized");
+                return false;
+            }
+
+            uint modifierFlags = ConvertModifiers(hotkeyConfig.Modifiers);
+            uint virtualKey = (uint)KeyInterop.VirtualKeyFromKey(hotkeyConfig.Key);
+
+            int hotkeyId = _nextHotkeyId++;
+
+            if (RegisterHotKey(_windowHandle, hotkeyId, modifierFlags, virtualKey))
+            {
+                _registeredHotkeys[hotkeyId] = (hotkeyConfig.Key, hotkeyConfig.Modifiers, callback);
+                _namedHotkeys["EmergencyDisconnect"] = hotkeyConfig;
+                _emergencyDisconnectHotkey = hotkeyConfig;
+                _emergencyDisconnectHotkeyId = hotkeyId;
+
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] ✓ Emergency disconnect hotkey registered successfully: {hotkeyConfig.Modifiers}+{hotkeyConfig.Key} (ID: {hotkeyId})");
+                return true;
+            }
+            else
+            {
+                int error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] ✗ Failed to register emergency disconnect hotkey {hotkeyConfig.Modifiers}+{hotkeyConfig.Key}. Error code: {error}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Exception registering emergency disconnect hotkey: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Unregisters the current emergency disconnect hotkey
+    /// </summary>
+    public bool UnregisterEmergencyDisconnectHotkey()
+    {
+        try
+        {
+            if (_emergencyDisconnectHotkeyId == -1 || _emergencyDisconnectHotkey == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[HOTKEY] No emergency disconnect hotkey to unregister");
+                return true;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Unregistering emergency disconnect hotkey: {_emergencyDisconnectHotkey.Modifiers}+{_emergencyDisconnectHotkey.Key}");
+
+            if (_windowHandle != IntPtr.Zero)
+            {
+                bool success = UnregisterHotKey(_windowHandle, _emergencyDisconnectHotkeyId);
+                if (success)
+                {
+                    _registeredHotkeys.Remove(_emergencyDisconnectHotkeyId);
+                    _namedHotkeys.Remove("EmergencyDisconnect");
+                    _emergencyDisconnectHotkey = null;
+                    _emergencyDisconnectHotkeyId = -1;
+
+                    System.Diagnostics.Debug.WriteLine("[HOTKEY] ✓ Emergency disconnect hotkey unregistered successfully");
+                    return true;
+                }
+                else
+                {
+                    int error = Marshal.GetLastWin32Error();
+                    System.Diagnostics.Debug.WriteLine($"[HOTKEY] ✗ Failed to unregister emergency disconnect hotkey. Error code: {error}");
+                    return false;
+                }
+            }
+
+            // Clear the references even if unregistration failed
+            _emergencyDisconnectHotkey = null;
+            _emergencyDisconnectHotkeyId = -1;
+            _namedHotkeys.Remove("EmergencyDisconnect");
+            
+            return true;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Exception unregistering emergency disconnect hotkey: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if a hotkey combination is available (not already registered)
+    /// Requirements: 4.2 (conflict detection)
+    /// </summary>
+    public bool IsHotkeyAvailable(Key key, ModifierKeys modifiers)
+    {
+        try
+        {
+            // Check if already registered in our internal tracking
+            var existingHotkey = _registeredHotkeys.Values.FirstOrDefault(h => h.key == key && h.modifiers == modifiers);
+            if (existingHotkey.callback != null)
+            {
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] Hotkey {modifiers}+{key} is already registered internally");
+                return false;
+            }
+
+            // Try to register temporarily to check system availability
+            if (_windowHandle == IntPtr.Zero)
+            {
+                System.Diagnostics.Debug.WriteLine("[HOTKEY] Cannot check hotkey availability: HotkeyManager not initialized");
+                return false;
+            }
+
+            uint modifierFlags = ConvertModifiers(modifiers);
+            uint virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+
+            // Use a temporary ID for testing
+            int testId = 9999;
+            
+            bool canRegister = RegisterHotKey(_windowHandle, testId, modifierFlags, virtualKey);
+            if (canRegister)
+            {
+                // Immediately unregister the test hotkey
+                UnregisterHotKey(_windowHandle, testId);
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] Hotkey {modifiers}+{key} is available");
+                return true;
+            }
+            else
+            {
+                int error = Marshal.GetLastWin32Error();
+                System.Diagnostics.Debug.WriteLine($"[HOTKEY] Hotkey {modifiers}+{key} is not available. Error code: {error}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Exception checking hotkey availability: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Validates a hotkey configuration for correctness and system compatibility
+    /// Requirements: 4.2 (validation logic)
+    /// </summary>
+    public bool ValidateHotkeyConfig(HotkeyConfig hotkeyConfig, out string? errorMessage)
+    {
+        errorMessage = null;
+
+        try
+        {
+            if (hotkeyConfig == null)
+            {
+                errorMessage = "Hotkey configuration cannot be null";
+                return false;
+            }
+
+            // Check if key is valid
+            if (hotkeyConfig.Key == Key.None)
+            {
+                errorMessage = "Key cannot be None";
+                return false;
+            }
+
+            // Check if at least one modifier is specified (recommended for global hotkeys)
+            if (hotkeyConfig.Modifiers == ModifierKeys.None)
+            {
+                errorMessage = "At least one modifier key (Ctrl, Alt, Shift, or Windows) should be specified for global hotkeys";
+                return false;
+            }
+
+            // Check for invalid key combinations
+            var invalidKeys = new[]
+            {
+                Key.LeftCtrl, Key.RightCtrl, Key.LeftAlt, Key.RightAlt,
+                Key.LeftShift, Key.RightShift, Key.LWin, Key.RWin,
+                Key.CapsLock, Key.NumLock, Key.Scroll
+            };
+
+            if (invalidKeys.Contains(hotkeyConfig.Key))
+            {
+                errorMessage = $"Key '{hotkeyConfig.Key}' cannot be used as the main key in a hotkey combination";
+                return false;
+            }
+
+            // Check for system reserved combinations
+            var reservedCombinations = new[]
+            {
+                (ModifierKeys.Control | ModifierKeys.Alt, Key.Delete), // Ctrl+Alt+Del
+                (ModifierKeys.Windows, Key.L), // Win+L (Lock screen)
+                (ModifierKeys.Alt, Key.Tab), // Alt+Tab
+                (ModifierKeys.Alt, Key.F4), // Alt+F4
+                (ModifierKeys.Control | ModifierKeys.Shift, Key.Escape), // Ctrl+Shift+Esc
+            };
+
+            foreach (var (modifiers, key) in reservedCombinations)
+            {
+                if (hotkeyConfig.Modifiers == modifiers && hotkeyConfig.Key == key)
+                {
+                    errorMessage = $"The combination {modifiers}+{key} is reserved by the system";
+                    return false;
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Hotkey configuration {hotkeyConfig.Modifiers}+{hotkeyConfig.Key} is valid");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Error validating hotkey configuration: {ex.Message}";
+            System.Diagnostics.Debug.WriteLine($"[HOTKEY] Exception validating hotkey config: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Gets a read-only dictionary of currently registered named hotkeys
+    /// Requirements: 4.2 (conflict detection support)
+    /// </summary>
+    public IReadOnlyDictionary<string, HotkeyConfig> GetRegisteredHotkeys()
+    {
+        return _namedHotkeys.AsReadOnly();
+    }
+
     public void Dispose()
     {
         if (_disposed)
             return;
+
+        // Unregister emergency disconnect hotkey
+        UnregisterEmergencyDisconnectHotkey();
 
         // Unregister all hotkeys
         if (_windowHandle != IntPtr.Zero)
@@ -256,6 +515,7 @@ public class HotkeyManager : IHotkeyManager, IDisposable
                 UnregisterHotKey(_windowHandle, hotkeyId);
             }
             _registeredHotkeys.Clear();
+            _namedHotkeys.Clear();
 
             // Unregister session notification
             if (_lockScreenCallback != null)

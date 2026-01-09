@@ -4,6 +4,8 @@ using System.Net.NetworkInformation;
 using System.ServiceProcess;
 using System.IO;
 using AppHider.Models;
+using AppHider.Utils;
+using FL = AppHider.Utils.FileLogger;
 
 namespace AppHider.Services;
 
@@ -101,6 +103,9 @@ public class NetworkController : INetworkController
     {
         LogOperation("Starting network disable operation");
 
+        // Capture network adapter states before operation
+        var beforeStates = await GetNetworkAdapterStatesAsync();
+
         try
         {
             // Save original settings before making changes
@@ -118,10 +123,21 @@ public class NetworkController : INetworkController
             // Step 4: Disable network adapter at device level
             await DisableNetworkAdapterAsync();
 
+            // Capture network adapter states after operation
+            var afterStates = await GetNetworkAdapterStatesAsync();
+
+            // Log network adapter state changes
+            FL.LogNetworkAdapterStates(beforeStates, afterStates, "DisableNetwork");
+
             LogOperation("Network disable operation completed successfully");
         }
         catch (Exception ex)
         {
+            // Capture states even on failure for debugging
+            var afterStates = await GetNetworkAdapterStatesAsync();
+            FL.LogNetworkAdapterStates(beforeStates, afterStates, "DisableNetwork_Failed");
+            
+            FL.LogDetailedError("DisableNetwork", ex, "Failed to disable network during privacy mode activation");
             LogOperation($"Error during network disable: {ex.Message}");
             throw;
         }
@@ -282,6 +298,9 @@ public class NetworkController : INetworkController
         LogOperation("Starting network restore operation");
         LogOperation("========================================");
 
+        // Capture network adapter states before operation
+        var beforeStates = await GetNetworkAdapterStatesAsync();
+
         // If _originalSettings is null, try to load from configuration file
         if (_originalSettings == null)
         {
@@ -304,6 +323,7 @@ public class NetworkController : INetworkController
             }
             catch (Exception ex)
             {
+                FL.LogDetailedError("LoadNetworkSettings", ex, "Failed to load network settings from configuration during restore");
                 LogOperation($"ERROR: Failed to load network settings from configuration: {ex.Message}");
                 LogOperation("Cannot restore network - no backup available");
                 return;
@@ -333,12 +353,23 @@ public class NetworkController : INetworkController
             LogOperation("Step 5/5: Removing firewall block rules");
             await RemoveFirewallBlockRulesAsync();
 
+            // Capture network adapter states after operation
+            var afterStates = await GetNetworkAdapterStatesAsync();
+
+            // Log network adapter state changes
+            FL.LogNetworkAdapterStates(beforeStates, afterStates, "RestoreNetwork");
+
             LogOperation("========================================");
             LogOperation("Network restore operation completed successfully");
             LogOperation("========================================");
         }
         catch (Exception ex)
         {
+            // Capture states even on failure for debugging
+            var afterStates = await GetNetworkAdapterStatesAsync();
+            FL.LogNetworkAdapterStates(beforeStates, afterStates, "RestoreNetwork_Failed");
+            
+            FL.LogDetailedError("RestoreNetwork", ex, "Critical failure during network restore operation");
             LogOperation($"CRITICAL ERROR during network restore: {ex.Message}");
             LogOperation($"Stack trace: {ex.StackTrace}");
             throw;
@@ -1170,5 +1201,34 @@ try {{
         }
 
         LogOperation($"netsh command executed: {arguments}");
+    }
+
+    /// <summary>
+    /// Gets the current state of all network adapters for logging purposes
+    /// </summary>
+    private async Task<Dictionary<string, bool>> GetNetworkAdapterStatesAsync()
+    {
+        var states = new Dictionary<string, bool>();
+        
+        try
+        {
+            await Task.Run(() =>
+            {
+                var adapters = NetworkInterface.GetAllNetworkInterfaces()
+                    .Where(a => a.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+                    .ToList();
+
+                foreach (var adapter in adapters)
+                {
+                    states[adapter.Name] = adapter.OperationalStatus == OperationalStatus.Up;
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            FL.LogDetailedError("GetNetworkAdapterStates", ex, "Failed to retrieve network adapter states");
+        }
+
+        return states;
     }
 }

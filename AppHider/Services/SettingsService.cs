@@ -124,6 +124,11 @@ public class SettingsService : ISettingsService
                 Key = System.Windows.Input.Key.F10, 
                 Modifiers = System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt 
             },
+            EmergencyDisconnectHotkey = new HotkeyConfig 
+            { 
+                Key = System.Windows.Input.Key.F8, 
+                Modifiers = System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt 
+            },
             HiddenApplicationNames = new List<string>(),
             OriginalNetworkSettings = null,
             SafeModeEnabled = false,

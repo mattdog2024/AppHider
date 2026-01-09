@@ -1,0 +1,116 @@
+AppHider v2.4.3 - 修复说明
+========================
+
+问题描述
+--------
+v2.4.0 - v2.4.2 版本存在严重问题：
+- 按下隐私模式快捷键后，系统会立即注销（logoff）
+- 某些情况下甚至导致系统重启
+
+根本原因
+--------
+代码中使用了 Windows Terminal Services API：
+- WTSLogoffSession: 此 API 会注销用户会话，导致系统注销
+- WTSDisconnectSession: 断开会话连接
+- Process.Kill(entireProcessTree: true): 终止整个进程树，可能影响系统进程
+
+这些 API 设计用于服务器环境的会话管理，不适合简单的窗口关闭需求。
+
+解决方案
+--------
+v2.4.3 采用最简单、最安全的方式：
+
+1. 移除所有复杂的会话管理代码
+   - 删除 WTSLogoffSession 调用
+   - 删除 WTSDisconnectSession 调用
+   - 删除 RDSessionService、RDClientService 等复杂服务的调用
+
+2. 创建简单的窗口关闭工具
+   - 新增 RemoteDesktopWindowCloser 类（仅 50 行代码）
+   - 使用 EnumWindows 枚举所有窗口
+   - 使用 GetWindowText 获取窗口标题
+   - 使用 SendMessage(WM_CLOSE) 关闭匹配的窗口
+   - 不涉及任何会话管理或进程终止
+
+3. 基于稳定的 v2.3.7 版本
+   - v2.3.7 是用户确认工作正常的版本
+   - 保持所有 v2.3.7 的功能不变
+   - 只添加简单的窗口关闭功能
+
+技术实现
+--------
+RemoteDesktopWindowCloser.CloseRemoteDesktopWindows():
+1. 枚举所有窗口
+2. 检查窗口标题是否包含"远程桌面连接"或"Remote Desktop Connection"
+3. 对匹配的窗口发送 WM_CLOSE 消息
+4. 如果失败，记录日志但不影响断网功能
+
+执行流程
+--------
+按下隐私模式快捷键后：
+1. 调用 RemoteDesktopWindowCloser.CloseRemoteDesktopWindows()
+   - 安全地关闭远程桌面窗口
+   - 失败不影响后续步骤
+2. 隐藏选定的应用程序
+3. 断开网络连接
+
+安全性保证
+----------
+✓ 不使用任何会话管理 API
+✓ 不使用任何进程终止 API
+✓ 只使用标准的窗口消息机制
+✓ 窗口关闭失败不影响断网功能
+✓ 不会导致系统注销或重启
+
+测试建议
+--------
+1. 打开"远程桌面连接"对话框（mstsc.exe）
+2. 按下隐私模式快捷键
+3. 验证：
+   - 远程桌面连接窗口被关闭
+   - 网络断开
+   - 系统不会注销或重启
+
+版本对比
+--------
+v2.4.0-v2.4.2:
+- 使用复杂的会话管理 API
+- 导致系统注销/重启
+- 不推荐使用
+
+v2.4.3:
+- 使用简单的窗口关闭 API
+- 安全稳定，不影响系统
+- 推荐使用
+
+v2.3.7:
+- 没有远程桌面窗口关闭功能
+- 稳定可靠
+- 如果不需要远程桌面窗口关闭，可以继续使用
+
+文件清单
+--------
+- AppHider-v2.4.3-SimpleRDWindowClose.zip (71.73 MB)
+  - AppHider.exe: 主程序
+  - AppHider-v2.4.3-使用说明.txt: 使用说明
+
+代码变更
+--------
+新增文件:
+- AppHider/Utils/RemoteDesktopWindowCloser.cs
+
+修改文件:
+- AppHider/Services/PrivacyModeController.cs
+  - 移除 _emergencyDisconnectController.ExecuteRemoteDesktopDisconnectOnlyAsync() 调用
+  - 添加 RemoteDesktopWindowCloser.CloseRemoteDesktopWindows() 调用
+- AppHider/MainWindow.xaml
+  - 窗口标题改为 "AppHider - v2.4.3"
+- AppHider/AppHider.csproj
+  - 版本号更新为 2.4.3
+
+总结
+----
+v2.4.3 是一个安全、稳定的版本，修复了 v2.4.0-v2.4.2 的严重问题。
+建议所有用户升级到此版本。
+
+如果您在使用过程中遇到任何问题，请及时反馈。

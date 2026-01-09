@@ -15,6 +15,11 @@ public class AppSettings
         Key = Key.F10, 
         Modifiers = ModifierKeys.Control | ModifierKeys.Alt 
     };
+    public HotkeyConfig EmergencyDisconnectHotkey { get; set; } = new() 
+    { 
+        Key = Key.F8, 
+        Modifiers = ModifierKeys.Control | ModifierKeys.Alt 
+    };
     public List<string> HiddenApplicationNames { get; set; } = new();
     public NetworkBackup? OriginalNetworkSettings { get; set; }
     public bool SafeModeEnabled { get; set; }

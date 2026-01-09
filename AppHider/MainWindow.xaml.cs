@@ -20,6 +20,7 @@ public partial class MainWindow : Window
     private readonly ISettingsService _settingsService;
     private readonly IAuthenticationService _authService;
     private readonly IAutoStartupService _autoStartupService;
+    private readonly IEmergencyDisconnectController _emergencyDisconnectController;
     
     private ObservableCollection<ApplicationViewModel> _applications = new();
     private Key _currentToggleHotkeyKey = Key.F9;
@@ -34,7 +35,8 @@ public partial class MainWindow : Window
         INetworkController networkController,
         ISettingsService settingsService,
         IAuthenticationService authService,
-        IAutoStartupService autoStartupService)
+        IAutoStartupService autoStartupService,
+        IEmergencyDisconnectController emergencyDisconnectController)
     {
         // Add window event logging BEFORE InitializeComponent
         this.Loaded += (s, e) => 
@@ -111,6 +113,7 @@ public partial class MainWindow : Window
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _autoStartupService = autoStartupService ?? throw new ArgumentNullException(nameof(autoStartupService));
+        _emergencyDisconnectController = emergencyDisconnectController ?? throw new ArgumentNullException(nameof(emergencyDisconnectController));
 
         InitializeUI();
         LoadSettings();
@@ -229,6 +232,25 @@ public partial class MainWindow : Window
         return modifiers1 == modifiers2 && key1 == key2;
     }
 
+    private bool HasHotkeyConflicts(ModifierKeys modifiers, Key key, out string conflictingHotkey)
+    {
+        conflictingHotkey = string.Empty;
+
+        if (AreHotkeysConflicting(modifiers, key, _currentToggleHotkeyModifiers, _currentToggleHotkeyKey))
+        {
+            conflictingHotkey = "Toggle Privacy Mode";
+            return true;
+        }
+
+        if (AreHotkeysConflicting(modifiers, key, _currentMenuHotkeyModifiers, _currentMenuHotkeyKey))
+        {
+            conflictingHotkey = "Open Menu";
+            return true;
+        }
+
+        return false;
+    }
+
     private void UpdateStatusDisplay()
     {
         if (_privacyModeController.IsPrivacyModeActive)
@@ -339,9 +361,9 @@ public partial class MainWindow : Window
         }
 
         // Check for conflict with menu hotkey
-        if (AreHotkeysConflicting(modifiers, key, _currentMenuHotkeyModifiers, _currentMenuHotkeyKey))
+        if (HasHotkeyConflicts(modifiers, key, out string conflictingHotkey) && conflictingHotkey != "Toggle Privacy Mode")
         {
-            MessageBox.Show("This hotkey conflicts with the Menu hotkey. Please choose a different combination.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show($"This hotkey conflicts with the {conflictingHotkey} hotkey. Please choose a different combination.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -376,9 +398,9 @@ public partial class MainWindow : Window
         }
 
         // Check for conflict with toggle hotkey
-        if (AreHotkeysConflicting(modifiers, key, _currentToggleHotkeyModifiers, _currentToggleHotkeyKey))
+        if (HasHotkeyConflicts(modifiers, key, out string conflictingHotkey) && conflictingHotkey != "Open Menu")
         {
-            MessageBox.Show("This hotkey conflicts with the Toggle Privacy Mode hotkey. Please choose a different combination.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show($"This hotkey conflicts with the {conflictingHotkey} hotkey. Please choose a different combination.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -395,7 +417,7 @@ public partial class MainWindow : Window
             if (AreHotkeysConflicting(_currentToggleHotkeyModifiers, _currentToggleHotkeyKey, 
                                      _currentMenuHotkeyModifiers, _currentMenuHotkeyKey))
             {
-                MessageBox.Show("The two hotkeys cannot be the same. Please configure different hotkeys.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("The hotkeys cannot be the same. Please configure different hotkeys for each function.", "Hotkey Conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 

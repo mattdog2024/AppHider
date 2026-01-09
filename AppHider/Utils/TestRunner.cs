@@ -91,9 +91,26 @@ public static class TestRunner
         totalTests++;
         Console.WriteLine();
 
-        // Test 5: Restart Consistency
+        // Test 5: Emergency Disconnect Hotkey
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        Console.WriteLine("Test Suite 5: Restart Consistency");
+        Console.WriteLine("Test Suite 5: Emergency Disconnect Hotkey");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        try
+        {
+            EmergencyDisconnectHotkeyTest.RunAllTests();
+            passedTests++;
+            Console.WriteLine("✓ Emergency Disconnect Hotkey Tests: PASSED");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Emergency Disconnect Hotkey Tests: FAILED - {ex.Message}");
+        }
+        totalTests++;
+        Console.WriteLine();
+
+        // Test 6: Restart Consistency
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("Test Suite 6: Restart Consistency");
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         try
         {
@@ -108,9 +125,70 @@ public static class TestRunner
         totalTests++;
         Console.WriteLine();
 
-        // Test 6: Watchdog Service (requires services to be initialized)
+        // Test 8: Remote Desktop Safe Mode
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
-        Console.WriteLine("Test Suite 6: Watchdog Service");
+        Console.WriteLine("Test Suite 8: Remote Desktop Safe Mode");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        try
+        {
+            await SafeModeRemoteDesktopTest.RunTests();
+            passedTests++;
+            Console.WriteLine("✓ Remote Desktop Safe Mode Tests: PASSED");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Remote Desktop Safe Mode Tests: FAILED - {ex.Message}");
+        }
+        totalTests++;
+        Console.WriteLine();
+
+        // Test 9: Remote Desktop Error Handling
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("Test Suite 9: Remote Desktop Error Handling");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        try
+        {
+            await ErrorHandlingRemoteDesktopTest.RunAllTestsAsync();
+            passedTests++;
+            Console.WriteLine("✓ Remote Desktop Error Handling Tests: PASSED");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Remote Desktop Error Handling Tests: FAILED - {ex.Message}");
+        }
+        totalTests++;
+        Console.WriteLine();
+
+        // Test 10: Performance Optimization
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("Test Suite 10: Performance Optimization");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        try
+        {
+            await PerformanceOptimizationTest.RunAllTestsAsync();
+            passedTests++;
+            Console.WriteLine("✓ Performance Optimization Tests: PASSED");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"✗ Performance Optimization Tests: FAILED - {ex.Message}");
+        }
+        totalTests++;
+        Console.WriteLine();
+
+        // Test 11: Remote Desktop Integration (requires full service context)
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("Test Suite 11: Remote Desktop Integration");
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("⚠ Integration tests require full application context");
+        Console.WriteLine("⚠ Run RemoteDesktopIntegrationTest manually with service injection");
+        Console.WriteLine("✓ Remote Desktop Integration Tests: SKIPPED (manual test available)");
+        totalTests++;
+        Console.WriteLine();
+
+        // Test 12: Watchdog Service (requires services to be initialized)
+        Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+        Console.WriteLine("Test Suite 12: Watchdog Service");
         Console.WriteLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
         Console.WriteLine("⚠ Watchdog tests require full application context");
         Console.WriteLine("⚠ Run WatchdogTest.TestWatchdogServiceAsync() manually if needed");

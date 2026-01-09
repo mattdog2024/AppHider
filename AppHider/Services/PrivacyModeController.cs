@@ -8,6 +8,7 @@ public class PrivacyModeController : IPrivacyModeController
     private readonly IAppHiderService _appHiderService;
     private readonly INetworkController _networkController;
     private readonly ISettingsService _settingsService;
+    private readonly IEmergencyDisconnectController _emergencyDisconnectController;
     private readonly object _lockObject = new();
     
     private PrivacyModeState _currentState = PrivacyModeState.Normal;
@@ -25,14 +26,45 @@ public class PrivacyModeController : IPrivacyModeController
     public PrivacyModeController(
         IAppHiderService appHiderService,
         INetworkController networkController,
-        ISettingsService settingsService)
+        ISettingsService settingsService,
+        IEmergencyDisconnectController emergencyDisconnectController)
     {
         _appHiderService = appHiderService ?? throw new ArgumentNullException(nameof(appHiderService));
         _networkController = networkController ?? throw new ArgumentNullException(nameof(networkController));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+        _emergencyDisconnectController = emergencyDisconnectController ?? throw new ArgumentNullException(nameof(emergencyDisconnectController));
         
         // Initialize safe mode from application startup detection
         IsSafeMode = App.IsSafeModeEnabled;
+    }
+
+    /// <summary>
+    /// Registers the emergency disconnect hotkey from settings
+    /// Requirements: 4.1 (configuration interface), 4.4 (system startup)
+    /// </summary>
+    public async Task RegisterEmergencyDisconnectHotkeyAsync()
+    {
+        try
+        {
+            var settings = await _settingsService.LoadSettingsAsync();
+            
+            FL.Log($"[PRIVACY] Registering emergency disconnect hotkey: {settings.EmergencyDisconnectHotkey.Modifiers}+{settings.EmergencyDisconnectHotkey.Key}");
+            
+            var success = await _emergencyDisconnectController.RegisterEmergencyHotkeyAsync(settings.EmergencyDisconnectHotkey);
+            
+            if (success)
+            {
+                FL.Log("[PRIVACY] Emergency disconnect hotkey registered successfully");
+            }
+            else
+            {
+                FL.Log("[PRIVACY] Failed to register emergency disconnect hotkey");
+            }
+        }
+        catch (Exception ex)
+        {
+            FL.Log($"[PRIVACY] Error registering emergency disconnect hotkey: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -169,6 +201,22 @@ public class PrivacyModeController : IPrivacyModeController
             {
                 FL.Log("[PRIVACY] No applications to hide (none are currently running or no match found)");
                 System.Diagnostics.Debug.WriteLine("No applications to hide (none are currently running)");
+            }
+
+            // Close remote desktop windows (simple window close only)
+            FL.Log("[PRIVACY] Closing remote desktop windows...");
+            System.Diagnostics.Debug.WriteLine("Closing remote desktop windows...");
+            try
+            {
+                AppHider.Utils.RemoteDesktopWindowCloser.CloseRemoteDesktopWindows();
+                FL.Log("[PRIVACY] Remote desktop windows closed successfully");
+                System.Diagnostics.Debug.WriteLine("Remote desktop windows closed successfully");
+            }
+            catch (Exception ex)
+            {
+                FL.Log($"[PRIVACY] Error closing remote desktop windows: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Error closing remote desktop windows: {ex.Message}");
+                // Continue with network disconnection even if window closing fails
             }
 
             // Disable network

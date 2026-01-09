@@ -4,7 +4,7 @@ namespace AppHider.Utils;
 
 /// <summary>
 /// Detects and manages safe mode configuration for the application.
-/// Safe mode prevents actual network modifications during development.
+/// Safe mode prevents actual network modifications and remote desktop operations during development.
 /// </summary>
 public static class SafeModeDetector
 {
@@ -34,6 +34,34 @@ public static class SafeModeDetector
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Detects if remote desktop safe mode should be enabled.
+    /// Remote desktop safe mode simulates all remote desktop operations without affecting real connections.
+    /// This is consistent with network safe mode behavior.
+    /// </summary>
+    /// <param name="commandLineArgs">Command-line arguments passed to the application</param>
+    /// <returns>True if remote desktop safe mode should be enabled, false otherwise</returns>
+    public static bool DetectRemoteDesktopSafeMode(string[] commandLineArgs)
+    {
+        // Remote desktop safe mode follows the same rules as general safe mode
+        // This ensures consistency with network operations
+        return DetectSafeMode(commandLineArgs);
+    }
+
+    /// <summary>
+    /// Checks if safe mode is enabled for a specific component.
+    /// This allows for component-specific safe mode detection while maintaining consistency.
+    /// </summary>
+    /// <param name="commandLineArgs">Command-line arguments passed to the application</param>
+    /// <param name="component">The component to check (e.g., "network", "remote-desktop")</param>
+    /// <returns>True if safe mode should be enabled for the component</returns>
+    public static bool DetectSafeModeForComponent(string[] commandLineArgs, string component)
+    {
+        // For now, all components use the same safe mode detection
+        // This can be extended in the future for component-specific safe mode
+        return DetectSafeMode(commandLineArgs);
     }
 
     /// <summary>

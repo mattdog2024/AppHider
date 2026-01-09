@@ -2,8 +2,10 @@
 using System.Data;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
+using AppHider.Models;
 using AppHider.Services;
 using AppHider.Utils;
 using AppHider.Views;
@@ -16,6 +18,10 @@ namespace AppHider;
 /// </summary>
 public partial class App : Application
 {
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool AllocConsole();
+
     public static bool IsSafeModeEnabled { get; private set; }
     
     private IPrivacyModeController? _privacyModeController;
@@ -26,6 +32,8 @@ public partial class App : Application
     private IWatchdogService? _watchdogService;
     private IAutoStartupService? _autoStartupService;
     private IDirectoryHidingService? _directoryHidingService;
+    private IEmergencyDisconnectController? _emergencyDisconnectController;
+    private IRemoteDesktopManager? _remoteDesktopManager;
     private UninstallProtectionService? _uninstallProtection;
     private HotkeyManager? _hotkeyManager;
     private MainWindow? _mainWindow;
@@ -66,6 +74,108 @@ public partial class App : Application
             // Run watchdog mode and exit
             Task.Run(async () => await WatchdogService.RunWatchdogModeAsync(parentProcessId)).Wait();
             Shutdown();
+            return;
+        }
+
+        // Check if running remote desktop tests
+        if (e.Args.Contains("--test-remote-desktop"))
+        {
+            // Allocate console for output
+            if (!System.Diagnostics.Debugger.IsAttached)
+            {
+                AllocConsole();
+            }
+            
+            // Run simple remote desktop verification
+            Console.WriteLine("Starting Remote Desktop Core Functionality Verification...");
+            try
+            {
+                var testsPassed = SimpleRemoteDesktopTest.VerifyCoreFunctionalityAsync().Result;
+                Console.WriteLine($"\nVerification completed. Result: {(testsPassed ? "PASSED" : "FAILED")}");
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+                Environment.Exit(testsPassed ? 0 : 1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Critical error running verification: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+                Environment.Exit(1);
+            }
+            return;
+        }
+
+        // Check if running integration verification
+        if (e.Args.Contains("--verify-integration"))
+        {
+            try
+            {
+                var testsPassed = SimpleIntegrationTest.RunSimpleTestAsync().Result;
+                Environment.Exit(testsPassed ? 0 : 1);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    File.WriteAllText("integration_error.txt", $"Critical error: {ex.Message}\nStack trace: {ex.StackTrace}");
+                }
+                catch { }
+                Environment.Exit(1);
+            }
+            return;
+        }
+
+        // Check if running comprehensive integration tests
+        if (e.Args.Contains("--test-integration"))
+        {
+            // Allocate console for output
+            if (!System.Diagnostics.Debugger.IsAttached)
+            {
+                AllocConsole();
+            }
+            
+            Console.WriteLine("Starting Remote Desktop Integration Tests...");
+            try
+            {
+                // Initialize services for testing
+                var settingsService = new SettingsService();
+                var networkController = new NetworkController();
+                var testRdSessionService = new RDSessionService();
+                var testRdClientService = new RDClientService();
+                var remoteDesktopManager = new RemoteDesktopManager(testRdSessionService, testRdClientService);
+                var emergencyDisconnectController = new EmergencyDisconnectController(remoteDesktopManager, networkController, null);
+                var appHiderService = new AppHiderService();
+                var privacyModeController = new PrivacyModeController(appHiderService, networkController, settingsService, emergencyDisconnectController);
+
+                // Enable safe mode for testing
+                remoteDesktopManager.IsSafeMode = true;
+                networkController.IsSafeMode = true;
+
+                // Run comprehensive integration tests
+                var integrationTestRunner = new ComprehensiveIntegrationTestRunner(
+                    privacyModeController,
+                    emergencyDisconnectController,
+                    remoteDesktopManager,
+                    networkController,
+                    settingsService);
+
+                var testsPassed = integrationTestRunner.RunAllIntegrationTestsAsync().Result;
+                
+                Console.WriteLine($"\nIntegration tests completed. Result: {(testsPassed ? "PASSED" : "FAILED")}");
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+                Environment.Exit(testsPassed ? 0 : 1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Critical error running integration tests: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+                Environment.Exit(1);
+            }
             return;
         }
 
@@ -114,7 +224,16 @@ public partial class App : Application
         _authService = new AuthenticationService(_settingsService);
         _appHiderService = new AppHiderService();
         _networkController = new NetworkController();
-        _privacyModeController = new PrivacyModeController(_appHiderService, _networkController, _settingsService);
+        
+        // Initialize remote desktop services
+        var rdSessionService = new RDSessionService();
+        var rdClientService = new RDClientService();
+        _remoteDesktopManager = new RemoteDesktopManager(rdSessionService, rdClientService);
+        
+        // Create EmergencyDisconnectController without HotkeyManager initially (will be set later)
+        _emergencyDisconnectController = new EmergencyDisconnectController(_remoteDesktopManager, _networkController, null);
+        
+        _privacyModeController = new PrivacyModeController(_appHiderService, _networkController, _settingsService, _emergencyDisconnectController);
         _watchdogService = new WatchdogService();
         _autoStartupService = new AutoStartupService();
         _directoryHidingService = new DirectoryHidingService();
@@ -261,6 +380,9 @@ public partial class App : Application
         _hotkeyManager = new HotkeyManager();
         _hotkeyManager.Initialize(_hiddenHotkeyWindow);
 
+        // Set the hotkey manager in the emergency disconnect controller
+        _emergencyDisconnectController!.SetHotkeyManager(_hotkeyManager);
+
         var initializationTime = timingStopwatch.ElapsedMilliseconds;
         Debug.WriteLine($"[TIMING] HotkeyManager initialized in {initializationTime - windowCreationTime}ms (total: {initializationTime}ms)");
 
@@ -306,6 +428,20 @@ public partial class App : Application
                 await _privacyModeController!.ActivatePrivacyModeAsync();
             });
             
+            // Register Emergency Disconnect hotkey
+            Task.Run(async () =>
+            {
+                var emergencyHotkeySuccess = await _emergencyDisconnectController!.RegisterEmergencyHotkeyAsync(settings.EmergencyDisconnectHotkey);
+                if (emergencyHotkeySuccess)
+                {
+                    Debug.WriteLine("[HOTKEY] ✓ Emergency disconnect hotkey registered successfully in background mode.");
+                }
+                else
+                {
+                    Debug.WriteLine("[HOTKEY] ⚠ Failed to register emergency disconnect hotkey in background mode.");
+                }
+            });
+            
             timingStopwatch.Stop();
             var totalTime = timingStopwatch.ElapsedMilliseconds;
             Debug.WriteLine($"[TIMING] All hotkeys registered in {totalTime - initializationTime}ms (total: {totalTime}ms)");
@@ -337,6 +473,14 @@ public partial class App : Application
                 System.Windows.Input.Key.F10,
                 System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt,
                 ShowMainWindowFromBackground);
+            
+            // Register default emergency disconnect hotkey
+            var defaultEmergencyHotkey = new HotkeyConfig 
+            { 
+                Key = System.Windows.Input.Key.F8, 
+                Modifiers = System.Windows.Input.ModifierKeys.Control | System.Windows.Input.ModifierKeys.Alt 
+            };
+            Task.Run(async () => await _emergencyDisconnectController!.RegisterEmergencyHotkeyAsync(defaultEmergencyHotkey));
             
             Debug.WriteLine("[HOTKEY] ✓ Default hotkeys registered in background mode.");
         }
@@ -543,7 +687,8 @@ public partial class App : Application
                         _networkController!,
                         _settingsService!,
                         _authService!,
-                        _autoStartupService!);
+                        _autoStartupService!,
+                        _emergencyDisconnectController!);
                     FL.Log("[STARTUP] ✓ MainWindow constructor completed successfully");
                     Debug.WriteLine("[STARTUP] ✓ MainWindow instance created successfully.");
                 }
@@ -678,6 +823,10 @@ public partial class App : Application
                 _hotkeyManager.Initialize(_hiddenHotkeyWindow);
                 FL.Log("[STARTUP] ✓ HotkeyManager initialized");
                 
+                // Set the hotkey manager in the emergency disconnect controller
+                _emergencyDisconnectController!.SetHotkeyManager(_hotkeyManager);
+                FL.Log("[STARTUP] ✓ HotkeyManager set in EmergencyDisconnectController");
+                
                 var initializationTime = timingStopwatch.ElapsedMilliseconds;
                 Debug.WriteLine($"[TIMING] HotkeyManager initialized in {initializationTime - hiddenWindowTime}ms (total: {initializationTime}ms)");
                 
@@ -781,6 +930,23 @@ public partial class App : Application
                     _hotkeyManager.RegisterLockScreenHook(async () =>
                     {
                         await _privacyModeController!.ActivatePrivacyModeAsync();
+                    });
+                    
+                    // Register Emergency Disconnect hotkey
+                    FL.Log("[HOTKEY] Registering emergency disconnect hotkey...");
+                    Task.Run(async () =>
+                    {
+                        var emergencyHotkeySuccess = await _emergencyDisconnectController!.RegisterEmergencyHotkeyAsync(settings.EmergencyDisconnectHotkey);
+                        if (emergencyHotkeySuccess)
+                        {
+                            FL.Log("[HOTKEY] ✓ Emergency disconnect hotkey registered successfully in normal mode");
+                            Debug.WriteLine("[HOTKEY] ✓ Emergency disconnect hotkey registered successfully in normal mode.");
+                        }
+                        else
+                        {
+                            FL.Log("[HOTKEY] ⚠ Failed to register emergency disconnect hotkey in normal mode");
+                            Debug.WriteLine("[HOTKEY] ⚠ Failed to register emergency disconnect hotkey in normal mode.");
+                        }
                     });
                     
                     timingStopwatch.Stop();
@@ -929,7 +1095,8 @@ public partial class App : Application
                         _networkController!,
                         _settingsService!,
                         _authService!,
-                        _autoStartupService!);
+                        _autoStartupService!,
+                        _emergencyDisconnectController!);
                     
                     // Register window closing event handler
                     _mainWindow.Closing += MainWindow_Closing;
