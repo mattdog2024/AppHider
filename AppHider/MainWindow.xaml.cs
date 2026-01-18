@@ -164,6 +164,14 @@ public partial class MainWindow : Window
             {
                 app.IsSelected = settings.HiddenApplicationNames.Contains(app.ProcessName, StringComparer.OrdinalIgnoreCase);
             }
+
+            // Load VHDX Settings
+            VHDXEnabledCheckBox.IsChecked = settings.IsVHDXEnabled;
+            VHDXPathTextBox.Text = settings.VHDXPath;
+            VHDXPasswordBox.Password = settings.VHDXPasswordEncrypted; // Treating as plain text for MVP
+            
+            // Trigger visual state update
+            UpdateVHDXControlsState();
         }
         catch (Exception ex)
         {
@@ -505,6 +513,59 @@ public partial class MainWindow : Window
         var changePasswordDialog = new ChangePasswordDialog(_authService);
         changePasswordDialog.Owner = this;
         changePasswordDialog.ShowDialog();
+    }
+
+    // VHDX Event Handlers
+
+    private void VHDXEnabled_Changed(object sender, RoutedEventArgs e)
+    {
+        UpdateVHDXControlsState();
+    }
+
+    private void UpdateVHDXControlsState()
+    {
+        bool isEnabled = VHDXEnabledCheckBox.IsChecked == true;
+        VHDXPathTextBox.IsEnabled = isEnabled;
+        VHDXPasswordBox.IsEnabled = isEnabled;
+        SaveVHDXButton.IsEnabled = isEnabled;
+        // Browse button should seemingly be enabled if check is checked
+        // But we can just use the IsEnabled state of the parent or controls
+    }
+
+    private void BrowseVHDXButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (VHDXEnabledCheckBox.IsChecked != true) return;
+
+        var openFileDialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "LVM Files (*.lvm)|*.lvm|VHDX Files (*.vhdx)|*.vhdx|All Files (*.*)|*.*",
+            Title = "Select Application Data Disk (.lvm)"
+        };
+
+        if (openFileDialog.ShowDialog() == true)
+        {
+            VHDXPathTextBox.Text = openFileDialog.FileName;
+        }
+    }
+
+    private async void SaveVHDXButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var settings = await _settingsService.LoadSettingsAsync();
+            settings.IsVHDXEnabled = VHDXEnabledCheckBox.IsChecked == true;
+            settings.VHDXPath = VHDXPathTextBox.Text;
+            settings.VHDXPasswordEncrypted = VHDXPasswordBox.Password; // Plain text storage for MVP
+            
+            await _settingsService.SaveSettingsAsync(settings);
+            
+            MessageBox.Show("VHDX settings saved successfully.\n\nChanges will take effect on next restart.", 
+                "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error saving VHDX settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
     }
 
     private void UninstallButton_Click(object sender, RoutedEventArgs e)

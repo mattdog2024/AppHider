@@ -1,4 +1,5 @@
 using AppHider.Models;
+using System.IO;
 using FL = AppHider.Utils.FileLogger;
 
 namespace AppHider.Services;
@@ -9,6 +10,8 @@ public class PrivacyModeController : IPrivacyModeController
     private readonly INetworkController _networkController;
     private readonly ISettingsService _settingsService;
     private readonly IEmergencyDisconnectController _emergencyDisconnectController;
+    private readonly IVHDXManager _vhdxManager;
+    private readonly ILogCleaner _logCleaner;
     private readonly object _lockObject = new();
     
     private PrivacyModeState _currentState = PrivacyModeState.Normal;
@@ -27,12 +30,17 @@ public class PrivacyModeController : IPrivacyModeController
         IAppHiderService appHiderService,
         INetworkController networkController,
         ISettingsService settingsService,
-        IEmergencyDisconnectController emergencyDisconnectController)
+
+        IEmergencyDisconnectController emergencyDisconnectController,
+        IVHDXManager vhdxManager,
+        ILogCleaner logCleaner)
     {
         _appHiderService = appHiderService ?? throw new ArgumentNullException(nameof(appHiderService));
         _networkController = networkController ?? throw new ArgumentNullException(nameof(networkController));
         _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
         _emergencyDisconnectController = emergencyDisconnectController ?? throw new ArgumentNullException(nameof(emergencyDisconnectController));
+        _vhdxManager = vhdxManager ?? throw new ArgumentNullException(nameof(vhdxManager));
+        _logCleaner = logCleaner ?? throw new ArgumentNullException(nameof(logCleaner));
         
         // Initialize safe mode from application startup detection
         IsSafeMode = App.IsSafeModeEnabled;
@@ -226,6 +234,19 @@ public class PrivacyModeController : IPrivacyModeController
             FL.Log("[PRIVACY] Network disabled successfully");
             System.Diagnostics.Debug.WriteLine("Network disabled successfully");
 
+            // NEW: Dismount VHDX if enabled
+            if (settings.IsVHDXEnabled)
+            {
+                FL.Log("[PRIVACY] Dismounting VHDX...");
+                await _vhdxManager.DismountVHDXAsync();
+                FL.Log("[PRIVACY] VHDX dismounted.");
+            }
+
+            // NEW: Clean Logs
+            FL.Log("[PRIVACY] Cleaning logs...");
+            await _logCleaner.CleanAllLogsAsync();
+            FL.Log("[PRIVACY] Logs cleaned.");
+
             // Update state to Active
             lock (_lockObject)
             {
@@ -307,6 +328,8 @@ public class PrivacyModeController : IPrivacyModeController
                 _hiddenProcessIds.Clear();
             }
 
+
+
             // Update state to Normal
             lock (_lockObject)
             {
@@ -317,6 +340,24 @@ public class PrivacyModeController : IPrivacyModeController
             var settings = await _settingsService.LoadSettingsAsync();
             settings.IsPrivacyModeActive = false;
             await _settingsService.SaveSettingsAsync(settings);
+
+            // NEW: Re-mount VHDX if enabled (Now we have valid settings variable)
+            if (settings.IsVHDXEnabled && !string.IsNullOrEmpty(settings.VHDXPath) && File.Exists(settings.VHDXPath))
+            {
+                FL.Log("[PRIVACY] Re-mounting VHDX...");
+                System.Diagnostics.Debug.WriteLine("Re-mounting VHDX...");
+                bool mounted = await _vhdxManager.MountVHDXAsync(settings.VHDXPath, settings.VHDXPasswordEncrypted);
+                if (mounted)
+                {
+                    FL.Log("[PRIVACY] VHDX re-mounted successfully.");
+                    System.Diagnostics.Debug.WriteLine("VHDX re-mounted successfully.");
+                }
+                else
+                {
+                    FL.Log("[PRIVACY] Failed to re-mount VHDX.");
+                    System.Diagnostics.Debug.WriteLine("Failed to re-mount VHDX.");
+                }
+            }
 
             // Notify state change to Normal
             OnPrivacyModeChanged(false, PrivacyModeState.Normal);

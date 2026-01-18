@@ -38,7 +38,9 @@ public static class FileBasedIntegrationTest
             var remoteDesktopManager = new RemoteDesktopManager(rdSessionService, rdClientService);
             var emergencyDisconnectController = new EmergencyDisconnectController(remoteDesktopManager, networkController, null);
             var appHiderService = new AppHiderService();
-            var privacyModeController = new PrivacyModeController(appHiderService, networkController, settingsService, emergencyDisconnectController);
+            var vhdxManager = new VHDXManager();
+            var logCleaner = new LogCleaner();
+            var privacyModeController = new PrivacyModeController(appHiderService, networkController, settingsService, emergencyDisconnectController, vhdxManager, logCleaner);
 
             // Enable safe mode for testing
             remoteDesktopManager.IsSafeMode = true;

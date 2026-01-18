@@ -34,6 +34,8 @@ public partial class App : Application
     private IDirectoryHidingService? _directoryHidingService;
     private IEmergencyDisconnectController? _emergencyDisconnectController;
     private IRemoteDesktopManager? _remoteDesktopManager;
+    private IVHDXManager? _vhdxManager; // [NEW]
+    private ILogCleaner? _logCleaner; // [NEW]
     private UninstallProtectionService? _uninstallProtection;
     private HotkeyManager? _hotkeyManager;
     private MainWindow? _mainWindow;
@@ -147,7 +149,9 @@ public partial class App : Application
                 var remoteDesktopManager = new RemoteDesktopManager(testRdSessionService, testRdClientService);
                 var emergencyDisconnectController = new EmergencyDisconnectController(remoteDesktopManager, networkController, null);
                 var appHiderService = new AppHiderService();
-                var privacyModeController = new PrivacyModeController(appHiderService, networkController, settingsService, emergencyDisconnectController);
+                var vhdxManager = new VHDXManager();
+                var logCleaner = new LogCleaner();
+                var privacyModeController = new PrivacyModeController(appHiderService, networkController, settingsService, emergencyDisconnectController, vhdxManager, logCleaner);
 
                 // Enable safe mode for testing
                 remoteDesktopManager.IsSafeMode = true;
@@ -230,13 +234,18 @@ public partial class App : Application
         var rdClientService = new RDClientService();
         _remoteDesktopManager = new RemoteDesktopManager(rdSessionService, rdClientService);
         
+        // Initialize VHDX and Log Cleaning services
+        _vhdxManager = new VHDXManager();
+        _logCleaner = new LogCleaner();
+        
         // Create EmergencyDisconnectController without HotkeyManager initially (will be set later)
         _emergencyDisconnectController = new EmergencyDisconnectController(_remoteDesktopManager, _networkController, null);
         
-        _privacyModeController = new PrivacyModeController(_appHiderService, _networkController, _settingsService, _emergencyDisconnectController);
+        _privacyModeController = new PrivacyModeController(_appHiderService, _networkController, _settingsService, _emergencyDisconnectController, _vhdxManager, _logCleaner);
         _watchdogService = new WatchdogService();
         _autoStartupService = new AutoStartupService();
         _directoryHidingService = new DirectoryHidingService();
+        
         _uninstallProtection = new UninstallProtectionService(_authService, _autoStartupService, _directoryHidingService);
 
         // CRITICAL FIX: Set ShutdownMode to OnExplicitShutdown to prevent automatic shutdown
@@ -325,6 +334,44 @@ public partial class App : Application
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error hiding installation directory: {ex.Message}");
+            }
+        });
+
+
+        // [NEW] Attempt to mount VHDX if configured (Requirement: Automatic mount on startup)
+        Task.Run(async () =>
+        {
+            try
+            {
+                var settings = await _settingsService!.LoadSettingsAsync();
+                if (settings.IsVHDXEnabled && !string.IsNullOrEmpty(settings.VHDXPath))
+                {
+                    FL.Log($"[STARTUP] VHDX configured at startup. Path: {settings.VHDXPath}");
+                    
+                    // Basic sanity check
+                    if (System.IO.File.Exists(settings.VHDXPath))
+                    {
+                        FL.Log("[STARTUP] Mounting VHDX...");
+                        // Use stored password (currently plain text in config as per implementation simplified plan)
+                        bool mounted = await _vhdxManager!.MountVHDXAsync(settings.VHDXPath, settings.VHDXPasswordEncrypted);
+                        if (mounted)
+                        {
+                            FL.Log("[STARTUP] VHDX mounted successfully.");
+                        }
+                        else
+                        {
+                            FL.Log("[STARTUP] Failed to mount VHDX.");
+                        }
+                    }
+                    else
+                    {
+                        FL.Log($"[STARTUP] VHDX file not found: {settings.VHDXPath}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                FL.Log($"[STARTUP] Error mounting VHDX: {ex.Message}");
             }
         });
 

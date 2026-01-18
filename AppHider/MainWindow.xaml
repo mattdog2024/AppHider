@@ -357,6 +357,82 @@
                         </Button.Style>
                     </Button>
 
+                    <!-- VHDX Configuration -->
+                    <TextBlock Text="Storage Security (VHDX)"
+                               FontSize="16"
+                               FontWeight="Bold"
+                               Foreground="#333333"
+                               Margin="0,0,0,10"/>
+                    
+                    <CheckBox x:Name="VHDXEnabledCheckBox"
+                              Content="Enable VHDX Encryption"
+                              Margin="0,0,0,5"
+                              Checked="VHDXEnabled_Changed"
+                              Unchecked="VHDXEnabled_Changed"/>
+
+                    <TextBlock Text="VHDX File Path (.lvm):"
+                               FontSize="12"
+                               Foreground="#666666"
+                               Margin="0,0,0,2"/>
+                    <Grid Margin="0,0,0,5">
+                         <Grid.ColumnDefinitions>
+                             <ColumnDefinition Width="*"/>
+                             <ColumnDefinition Width="Auto"/>
+                         </Grid.ColumnDefinitions>
+                         <TextBox x:Name="VHDXPathTextBox"
+                                  Grid.Column="0"
+                                  Height="30"
+                                  Padding="2"
+                                  IsReadOnly="True"
+                                  Background="#F0F0F0"
+                                  VerticalContentAlignment="Center"/>
+                         <Button Grid.Column="1"
+                                 Content="..."
+                                 Width="30"
+                                 Height="30"
+                                 Click="BrowseVHDXButton_Click"/>
+                    </Grid>
+
+                    <TextBlock Text="BitLocker Password:"
+                               FontSize="12"
+                               Foreground="#666666"
+                               Margin="0,0,0,2"/>
+                    <PasswordBox x:Name="VHDXPasswordBox"
+                                 Height="30"
+                                 Margin="0,0,0,10"
+                                 VerticalContentAlignment="Center"/>
+                    
+                    <Button x:Name="SaveVHDXButton"
+                            Content="Save VHDX Settings"
+                            Height="30"
+                            Background="#9C27B0"
+                            Foreground="White"
+                            Cursor="Hand"
+                            Click="SaveVHDXButton_Click"
+                            Margin="0,0,0,20">
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    CornerRadius="3"
+                                                    Padding="10,5">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.9"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                     <!-- Auto-Startup Section -->
                     <TextBlock Text="System Settings"
                                FontSize="16"
