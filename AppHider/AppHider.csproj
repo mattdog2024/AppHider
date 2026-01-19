@@ -10,9 +10,9 @@
     <ApplicationIcon>app.ico</ApplicationIcon>
     
     <!-- Version Information -->
-    <Version>2.4.3</Version>
-    <AssemblyVersion>2.4.3.0</AssemblyVersion>
-    <FileVersion>2.4.3.0</FileVersion>
+    <Version>2.5.0</Version>
+    <AssemblyVersion>2.5.0.0</AssemblyVersion>
+    <FileVersion>2.5.0.0</FileVersion>
     <Product>AppHider</Product>
     <Description>Application hiding and privacy mode control utility with simple remote desktop window closing</Description>
     <Copyright>Copyright © 2024</Copyright>

@@ -14,20 +14,7 @@ namespace AppHider;
 /// </summary>
 public partial class MainWindow : Window
 {
-    private readonly IPrivacyModeController _privacyModeController;
-    private readonly IAppHiderService _appHiderService;
-    private readonly INetworkController _networkController;
-    private readonly ISettingsService _settingsService;
-    private readonly IAuthenticationService _authService;
-    private readonly IAutoStartupService _autoStartupService;
-    private readonly IEmergencyDisconnectController _emergencyDisconnectController;
-    
-    private ObservableCollection<ApplicationViewModel> _applications = new();
-    private Key _currentToggleHotkeyKey = Key.F9;
-    private ModifierKeys _currentToggleHotkeyModifiers = ModifierKeys.Control | ModifierKeys.Alt;
-    private Key _currentMenuHotkeyKey = Key.F10;
-    private ModifierKeys _currentMenuHotkeyModifiers = ModifierKeys.Control | ModifierKeys.Alt;
-    private bool _isLoadingSettings = false; // Flag to prevent recursive calls during settings load
+    private readonly IVHDXManager _vhdxManager;
 
     public MainWindow(
         IPrivacyModeController privacyModeController,
@@ -36,7 +23,8 @@ public partial class MainWindow : Window
         ISettingsService settingsService,
         IAuthenticationService authService,
         IAutoStartupService autoStartupService,
-        IEmergencyDisconnectController emergencyDisconnectController)
+        IEmergencyDisconnectController emergencyDisconnectController,
+        IVHDXManager vhdxManager) // [NEW] Injected
     {
         // Add window event logging BEFORE InitializeComponent
         this.Loaded += (s, e) => 
@@ -114,6 +102,7 @@ public partial class MainWindow : Window
         _authService = authService ?? throw new ArgumentNullException(nameof(authService));
         _autoStartupService = autoStartupService ?? throw new ArgumentNullException(nameof(autoStartupService));
         _emergencyDisconnectController = emergencyDisconnectController ?? throw new ArgumentNullException(nameof(emergencyDisconnectController));
+        _vhdxManager = vhdxManager ?? throw new ArgumentNullException(nameof(vhdxManager));
 
         InitializeUI();
         LoadSettings();
@@ -121,6 +110,8 @@ public partial class MainWindow : Window
         // Subscribe to privacy mode changes
         _privacyModeController.PrivacyModeChanged += OnPrivacyModeChanged;
     }
+
+
 
     private void InitializeUI()
     {
@@ -552,19 +543,64 @@ public partial class MainWindow : Window
     {
         try
         {
+            SaveVHDXButton.IsEnabled = false;
+
             var settings = await _settingsService.LoadSettingsAsync();
-            settings.IsVHDXEnabled = VHDXEnabledCheckBox.IsChecked == true;
+            
+            // Capture old state to detect changes
+            bool wasEnabled = settings.IsVHDXEnabled;
+            
+            // Update settings
+            bool isNowEnabled = VHDXEnabledCheckBox.IsChecked == true;
+            settings.IsVHDXEnabled = isNowEnabled;
             settings.VHDXPath = VHDXPathTextBox.Text;
-            settings.VHDXPasswordEncrypted = VHDXPasswordBox.Password; // Plain text storage for MVP
+            settings.VHDXPasswordEncrypted = VHDXPasswordBox.Password; 
             
             await _settingsService.SaveSettingsAsync(settings);
             
-            MessageBox.Show("VHDX settings saved successfully.\n\nChanges will take effect on next restart.", 
-                "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+            // Logic for Immediate Effect
+            if (!isNowEnabled)
+            {
+                // Case 1: Disabled -> Dismount immediately
+                if (wasEnabled) 
+                {
+                    await _vhdxManager.DismountVHDXAsync();
+                    MessageBox.Show("VHDX settings saved. Drive has been dismounted.", "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show("VHDX settings saved.", "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+            }
+            else
+            {
+                // Case 2: Enabled -> Mount immediately
+                if (!string.IsNullOrEmpty(settings.VHDXPath) && System.IO.File.Exists(settings.VHDXPath))
+                {
+                    // Attempt to mount
+                    bool mounted = await _vhdxManager.MountVHDXAsync(settings.VHDXPath, settings.VHDXPasswordEncrypted);
+                    if (mounted)
+                    {
+                        MessageBox.Show("VHDX settings saved. Drive mounted successfully.", "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        MessageBox.Show("VHDX settings saved, but failed to mount drive. Check password or file path.", "Warning", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                else
+                {
+                     MessageBox.Show("VHDX settings saved. Please select a valid VHDX file.", "Settings Saved", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
         }
         catch (Exception ex)
         {
             MessageBox.Show($"Error saving VHDX settings: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SaveVHDXButton.IsEnabled = true;
         }
     }
 

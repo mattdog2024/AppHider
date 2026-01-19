@@ -735,7 +735,8 @@ public partial class App : Application
                         _settingsService!,
                         _authService!,
                         _autoStartupService!,
-                        _emergencyDisconnectController!);
+                        _emergencyDisconnectController!,
+                        _vhdxManager!);
                     FL.Log("[STARTUP] ✓ MainWindow constructor completed successfully");
                     Debug.WriteLine("[STARTUP] ✓ MainWindow instance created successfully.");
                 }
